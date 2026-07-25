@@ -14,7 +14,7 @@ DEEPSEEK_BASE_URL = os.environ.get(
     'DEEPSEEK_API_HOST',
     'https://ws-ndrn7uqqjjn2ucra.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'
 )
-DEEPSEEK_MODEL = "deepseek-v4-flash"
+DEEPSEEK_MODEL = "deepseek-v4-pro"
 
 
 def analyze_resume_with_llm(position: str, resume: str) -> dict:
