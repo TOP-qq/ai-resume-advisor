@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>讯飞职场情报 · AI 简历顾问</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0b0f1a;--card:#131929;--border:#1e2d45;--accent:#2979ff;--accent2:#7c4dff;--accent3:#00e5ff;--text:#e8eaf6;--muted:#7986a3;--success:#00e676;--iflytek:#005bff}
+*{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;min-height:100vh}
+/* 导航栏 */
+.navbar{position:sticky;top:0;z-index:100;background:rgba(11,15,26,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px}
+.nav-brand{display:flex;align-items:center;gap:10px;cursor:pointer}
+.nav-logo{width:30px;height:30px;background:linear-gradient(135deg,var(--iflytek),var(--accent2));border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0}
+.nav-brand-text{font-size:15px;font-weight:700;color:var(--text)}
+.nav-brand-sub{font-size:11px;color:var(--muted);margin-left:4px}
+.nav-tabs{display:flex;gap:4px}
+.nav-tab{padding:6px 14px;border-radius:6px;border:none;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;transition:all .2s}
+.nav-tab:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.nav-tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.nav-right{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.live-dot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:blink 2s infinite}
+/* 动画 */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slide{0%{width:0;margin-left:0}60%{width:65%;margin-left:15%}100%{width:0;margin-left:100%}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+/* 页面容器 */
+.page{display:none;max-width:900px;margin:0 auto;padding:28px 20px 60px}
+.page.active{display:block;animation:fadeUp .3s ease}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px;margin-bottom:18px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+/* Hero */
+.hero{text-align:center;padding:44px 0 32px}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(41,121,255,.12);border:1px solid rgba(41,121,255,.3);color:#82aaff;font-size:12px;padding:4px 14px;border-radius:20px;margin-bottom:18px}
+.hero h1{font-size:36px;font-weight:800;line-height:1.25;margin-bottom:12px;background:linear-gradient(90deg,#82aaff,#ce93d8,var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:14px;color:var(--muted);max-width:500px;margin:0 auto 12px}
+.if-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.if-tag{background:rgba(0,91,255,.15);border:1px solid rgba(0,91,255,.3);color:#82aaff;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700}
+/* 表单 */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:580px){.form-row{grid-template-columns:1fr}.navbar{padding:0 14px}.nav-tabs .nav-tab{padding:5px 9px;font-size:11px}}
+.fg{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.fg label{font-size:12px;font-weight:600;color:var(--muted)}
+.fg input,.fg textarea,.fg select{background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:8px;padding:10px 13px;font-size:14px;color:var(--text);font-family:inherit;outline:none;transition:all .22s;resize:vertical}
+.fg input::placeholder,.fg textarea::placeholder{color:#3a4a6a}
+.fg input:focus,.fg textarea:focus,.fg select:focus{border-color:var(--accent);background:rgba(41,121,255,.06);box-shadow:0 0 0 3px rgba(41,121,255,.12)}
+.fg textarea{min-height:170px;line-height:1.7}
+.char-hint{font-size:11px;color:var(--muted);text-align:right;margin-top:3px}
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 22px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .22s}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 4px 16px rgba(41,121,255,.3);width:100%}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 7px 22px rgba(41,121,255,.5)}
+.btn-primary:disabled{background:rgba(255,255,255,.07);color:var(--muted);box-shadow:none;cursor:not-allowed}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.btn-sm{padding:6px 13px;font-size:12px}
+/* 加载和错误 */
+.loading{display:none;margin:18px 0}
+.loading.active{display:block}
+.loading-bar{height:2px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.loading-bar-inner{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));animation:slide 1.8s ease-in-out infinite}
+.loading-text{font-size:13px;color:var(--muted);text-align:center;animation:pulse 1.6s ease-in-out infinite}
+.err{display:none;padding:11px 14px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.3);color:#ef9a9a;border-radius:8px;font-size:13px;margin-top:10px}
+.err.on{display:block}
+/* 结果区 */
+.result-area{display:none}
+.result-area.active{display:block;animation:fadeUp .4s ease}
+.rg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:580px){.rg{grid-template-columns:1fr}}
+.rb{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:16px}
+.rb h4{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px}
+.rb .val{font-size:14px;color:var(--text);line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.radar-wrap{display:flex;justify-content:center;padding:8px 0}
+.empty{text-align:center;padding:36px 20px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body><script type="text/javascript" async src="/ajax-hook.js"></script>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+  <div class="nav-brand" onclick="showPage('home')">
+    <div class="nav-logo">飞</div>
+    <span class="nav-brand-text">讯飞职场情报</span>
+    <span class="nav-brand-sub">Beta</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('home')" id="tab-home">📄 简历分析</button>
+  </div>
+  <div class="nav-right">
+    <div class="live-dot"></div>
+    AI 在线
+  </div>
+</nav>
+
+<!-- 简历分析页 -->
+<div class="page active" id="page-home">
+  <div class="hero">
+    <div class="hero-badge">✦ AI 驱动的职场情报引擎</div>
+    <h1>让简历精准命中<br>每一个机会</h1>
+    <p>输入你的目标岗位和简历，AI 为你分析竞争力、推荐最匹配的公司并给出定制化修改建议</p>
+    <div class="if-badge" style="margin-top:12px">
+      <span class="if-tag">Powered by iFLYTEK</span>
+      <span>科大讯飞职场情报平台出品</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✍️ 填写信息</div>
+    <div class="form-row">
+      <div class="fg">
+        <label>目标岗位 *</label>
+        <input type="text" id="h-position" placeholder="如：算法工程师、产品经理…" maxlength="100">
+      </div>
+      <div class="fg">
+        <label>期望公司类型（可选）</label>
+        <select id="h-type">
+          <option value="">不限</option>
+          <option value="全球科技巨头">全球科技巨头</option>
+          <option value="AI独角兽">AI独角兽</option>
+          <option value="外企">外企</option>
+          <option value="国内互联网">国内互联网</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg">
+      <label>简历内容 * <span style="font-weight:400;color:var(--muted)">（至少50字）</span></label>
+      <textarea id="h-resume" placeholder="粘贴简历：教育背景、工作经历、项目经验、技能…" maxlength="5000"></textarea>
+      <div class="char-hint"><span id="h-char">0</span> / 5000 字</div>
+    </div>
+    <button class="btn btn-primary" id="h-btn" onclick="doAnalyze()">🚀 开始智能分析</button>
+    <div class="err" id="h-err"></div>
+  </div>
+
+  <div class="loading" id="h-loading">
+    <div class="loading-bar"><div class="loading-bar-inner"></div></div>
+    <div class="loading-text" id="h-loading-text">AI 正在分析简历…</div>
+  </div>
+
+  <div class="result-area" id="h-result">
+    <div class="card">
+      <div class="card-title">✅ 分析结果</div>
+      <div class="rg">
+        <div class="rb">
+          <h4>🏢 推荐公司</h4>
+          <div class="val" id="h-company">—</div>
+        </div>
+        <div class="rb">
+          <h4>📊 竞争力雷达</h4>
+          <div class="radar-wrap"><canvas id="radarChart" width="260" height="260"></canvas></div>
+        </div>
+      </div>
+      <div class="rb">
+        <h4>✏️ 简历修改建议</h4>
+        <div class="val" id="h-advice">—</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-ghost btn-sm" onclick="resetHome()">🔄 重新分析</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer style="max-width:900px;margin:0 auto;text-align:center;padding:24px 20px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:6px">
+    <div style="width:16px;height:16px;background:linear-gradient(135deg,var(--iflytek),var(--accent2));border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff">飞</div>
+    <span>科大讯飞职场情报平台</span>
+  </div>
+  <span style="opacity:.3">|</span>
+  <span>Powered by iFLYTEK AI · DeepSeek</span>
+  <span style="opacity:.3">|</span>
+  <span>数据仅供参考，不构成职业建议</span>
+</footer>
+
+<script>
+// 页面切换
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  const tab = document.getElementById('tab-' + name);
+  if (page) page.classList.add('active');
+  if (tab) tab.classList.add('active');
+}
+
+// 字数统计
+document.getElementById('h-resume').addEventListener('input', function() {
+  document.getElementById('h-char').textContent = this.value.length;
+});
+
+// 工具函数
+function showErr(id, msg) {
+  const el = document.getElementById(id + '-err');
+  if (el) { el.textContent = '⚠ ' + msg; el.classList.add('on'); }
+}
+function clearErr(id) {
+  const el = document.getElementById(id + '-err');
+  if (el) { el.textContent = ''; el.classList.remove('on'); }
+}
+function setLoading(id, on) {
+  const btn = document.getElementById(id + '-btn');
+  const ld = document.getElementById(id + '-loading');
+  if (btn) btn.disabled = on;
+  if (ld) on ? ld.classList.add('active') : ld.classList.remove('active');
+}
+
+// 雷达图
+let radarChart = null;
+const RADAR_LABELS = ['技能匹配', '工作经验', '教育背景', '项目质量', '简历表达', '市场适配'];
+function drawRadar(radar) {
+  const data = [radar.skill_match, radar.experience, radar.education, radar.project_quality, radar.expression, radar.market_fit];
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  if (radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: RADAR_LABELS,
+      datasets: [{
+        label: '评分',
+        data,
+        backgroundColor: 'rgba(41,121,255,.18)',
+        borderColor: '#2979ff',
+        borderWidth: 2,
+        pointBackgroundColor: '#2979ff',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          ticks: { stepSize: 25, color: '#7986a3', font: { size: 10 }, backdropColor: 'transparent' },
+          grid: { color: 'rgba(255,255,255,.08)' },
+          angleLines: { color: 'rgba(255,255,255,.08)' },
+          pointLabels: { color: '#b0bec5', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// 简历分析
+async function doAnalyze() {
+  clearErr('h');
+  const position = document.getElementById('h-position').value.trim();
+  const resume = document.getElementById('h-resume').value.trim();
+  if (!position) return showErr('h', '请输入目标岗位');
+  if (!resume || resume.length < 50) return showErr('h', '简历内容至少需要50个字符');
+
+  document.getElementById('h-result').classList.remove('active');
+  setLoading('h', true);
+
+  const msgs = ['AI 正在分析简历…','解码你的竞争优势…','匹配全球企业数据库…','生成定制化建议…'];
+  let i = 0;
+  const lt = document.getElementById('h-loading-text');
+  const timer = setInterval(() => { lt.textContent = msgs[i++ % msgs.length]; }, 2200);
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position, resume })
+    });
+    const json = await res.json();
+    clearInterval(timer);
+    setLoading('h', false);
+
+    if (!json.success) return showErr('h', json.error || '分析失败');
+
+    const d = json.data;
+    document.getElementById('h-company').textContent = d.recommended_company || '—';
+    document.getElementById('h-advice').textContent = d.modification_advice || '—';
+    if (d.radar) drawRadar(d.radar);
+    document.getElementById('h-result').classList.add('active');
+  } catch (e) {
+    clearInterval(timer);
+    setLoading('h', false);
+    showErr('h', '网络错误，请重试');
+  }
+}
+
+function resetHome() {
+  document.getElementById('h-result').classList.remove('active');
+  document.getElementById('h-position').value = '';
+  document.getElementById('h-resume').value = '';
+  document.getElementById('h-char').textContent = '0';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
+
+
