@@ -20,9 +20,13 @@ def analyze_resume_with_llm(position: str, resume: str) -> dict:
         }
     
     try:
+        # 明确清除环境变量中可能存在的代理设置，避免 proxies 参数冲突
+        import httpx
+        http_client = httpx.Client()
         client = OpenAI(
             api_key=DEEPSEEK_API_KEY,
-            base_url=DEEPSEEK_BASE_URL
+            base_url=DEEPSEEK_BASE_URL,
+            http_client=http_client
         )
         
         prompt = f"""你是一位资深的招聘顾问和职业规划专家。请根据以下信息，为求职者提供精准的公司推荐和简历优化建议。
