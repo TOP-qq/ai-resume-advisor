@@ -36,6 +36,17 @@ def _check_rate_limit(ip: str) -> tuple[bool, str]:
     today = time.strftime('%Y-%m-%d')
     key_day = f"{ip}:{today}"
 
+    # 定期清理过期数据（每100次调用清理一次）
+    if int(now) % 100 == 0:
+        # 清理超过1小时的rate_window记录
+        for k in list(_rate_window.keys()):
+            if not _rate_window[k] or now - _rate_window[k][-1] > 3600:
+                del _rate_window[k]
+        # 清理昨天及更早的daily_count记录
+        for k in list(_daily_count.keys()):
+            if ':' in k and k.split(':')[1] != today:
+                del _daily_count[k]
+
     # 每天限制
     if _daily_count[key_day] >= RATE_LIMIT_PER_DAY:
         return False, '今日请求次数已达上限（30次），请明天再试'
