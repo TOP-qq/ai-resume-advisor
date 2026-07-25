@@ -7,7 +7,8 @@ import hashlib
 import gc
 import httpx
 from collections import defaultdict
-from openai import OpenAI
+# 延迟导入：OpenAI 只在调用 API 时才 import，节省启动内存 ~30MB
+# from openai import OpenAI  # 移到 _call_llm 函数内部
 
 app = Flask(__name__)
 CORS(app)
@@ -75,6 +76,9 @@ def _parse_json(text: str) -> dict:
 
 def _call_llm(system: str, prompt: str, temperature: float = 0.8, max_tokens: int = 2000) -> str:
     """调用大模型。关键：httpx 客户端用完即关，避免连接堆积导致内存溢出。"""
+    # 延迟导入：只在真正调用时才导入 OpenAI，节省启动内存
+    from openai import OpenAI
+    
     http_client = httpx.Client(timeout=110.0)
     try:
         client = OpenAI(
