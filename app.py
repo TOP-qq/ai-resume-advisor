@@ -113,6 +113,7 @@ def analyze():
     data     = request.get_json() or {}
     position = data.get('position', '').strip()[:MAX_POSITION_LEN]
     resume   = data.get('resume',   '').strip()[:MAX_RESUME_LEN]
+    jd_text  = data.get('jd_text', '').strip()[:2000]  # JD原文（可选）
     regions  = data.get('regions', [])       # 目标地区（多选）
     co_types = data.get('co_types', [])      # 公司类型（多选）
     intents  = data.get('intents', [])       # 求职意向（多选）
@@ -130,10 +131,13 @@ def analyze():
     if co_types: pref_parts.append(f"公司类型：{('、'.join(co_types))[:100]}")
     if intents:  pref_parts.append(f"求职意向：{('、'.join(intents))[:100]}")
     pref_text = '\n'.join(pref_parts) if pref_parts else '不限（AI自由推荐）'
+    
+    # JD相关提示
+    jd_hint = f"\n【岗位JD原文】\n{jd_text}\n（请严格基于JD原文分析匹配度，识别关键要求）" if jd_text else "\n（用户未提供JD原文，基于岗位名称推断）"
 
     prompt = f"""你是科大讯飞AI职场大脑的资深顾问，拥有全球招聘市场视野。
 
-【岗位】{position}
+【岗位】{position}{jd_hint}
 【简历】{resume}
 【求职偏好】
 {pref_text}
@@ -141,12 +145,13 @@ def analyze():
 
 任务（必须严格结合上面的"求职偏好"来推荐，不能忽略用户的地区/公司类型/意向选择）：
 1. 推荐公司：根据用户偏好推荐1家最匹配的公司（若用户限定了地区/类型，必须在该范围内推荐；未限定则全球范围含创业/外企/独角兽/隐形冠军）。给出公司名称+推荐理由60字内，理由要体现如何契合用户的偏好和简历细节。
-2. 简历优化：结合目标公司，给出具体建议（突出技能、关键词优化、增删内容、量化成果），至少200字分段。
+2. 简历优化：结合目标公司和JD要求，给出具体建议（突出技能、关键词优化、增删内容、量化成果），至少200字分段。
 3. 竞争力雷达：6维0-100整数评分，要有区分度：skill_match技能匹配、experience工作经验、education教育背景、project_quality项目质量、expression简历表达、market_fit市场适配。
 4. 行动清单：给出3条求职者当下可立即执行的具体行动建议，每条30字内。
+5. 竞争画像：基于JD和市场情况，给出岗位的真实竞争水位（难度评级1-5星，当前竞争激烈度描述50字内，关键竞争维度3个）。
 
 严格返回JSON，不要其他文字：
-{{"recommended_company":"公司名（理由）","modification_advice":"至少200字分段建议","radar":{{"skill_match":75,"experience":60,"education":80,"project_quality":70,"expression":65,"market_fit":72}},"action_items":["行动1","行动2","行动3"]}}"""
+{{"recommended_company":"公司名（理由）","modification_advice":"至少200字分段建议","radar":{{"skill_match":75,"experience":60,"education":80,"project_quality":70,"expression":65,"market_fit":72}},"action_items":["行动1","行动2","行动3"],"competition_portrait":{{"difficulty":4,"description":"竞争描述","key_dimensions":["维度1","维度2","维度3"]}}}}"""
 
     try:
         raw = _call_deepseek("你是科大讯飞AI职场大脑的职业顾问，只返回JSON，不加解释。", prompt, 0.85, 2000)
@@ -156,7 +161,8 @@ def analyze():
             'recommended_company': '分析完成',
             'modification_advice': raw,
             'radar': {'skill_match':70,'experience':65,'education':75,'project_quality':68,'expression':72,'market_fit':70},
-            'action_items': []
+            'action_items': [],
+            'competition_portrait': {'difficulty':3,'description':'中等竞争','key_dimensions':['技能','经验','学历']}
         }})
     except Exception as e:
         print(f"❌ analyze: {e}")
@@ -177,6 +183,7 @@ def interview():
     position = data.get('position', '').strip()[:MAX_POSITION_LEN]
     resume   = data.get('resume',   '').strip()[:MAX_RESUME_LEN]
     company  = data.get('company',  '').strip()[:100]
+    jd_text  = data.get('jd_text', '').strip()[:2000]  # JD原文（可选）
 
     if not position or not resume:
         return jsonify({'success': False, 'error': '请填写岗位和简历'}), 400
@@ -186,11 +193,13 @@ def interview():
         return jsonify({'success': False, 'error': 'API未配置'}), 500
 
     tgt = f'（目标公司：{company}）' if company else ''
-    prompt = f"""你是科大讯飞AI职场大脑的面试官，面试「{position}」岗位候选人{tgt}。
+    jd_hint = f'\n【岗位JD原文】\n{jd_text}\n（请严格基于JD要求出题，考察候选人是否满足JD中的关键技能和经验）' if jd_text else ''
+    
+    prompt = f"""你是科大讯飞AI职场大脑的面试官，面试「{position}」岗位候选人{tgt}。{jd_hint}
 
 简历：{resume}
 
-根据简历生成5道定制面试题，覆盖技术深度、项目经验、行为能力，要针对性，不出泛泛通用题。每题提供：题目、考察重点（一句话）、参考答案（150字左右结合简历背景）、难度（初级/中级/高级）、进阶追问（1个深入追问，20字内）。
+根据简历和JD要求生成5道定制面试题，覆盖技术深度、项目经验、行为能力，要针对性，不出泛泛通用题。每题提供：题目、考察重点（一句话）、参考答案（150字左右结合简历背景）、难度（初级/中级/高级）、进阶追问（1个深入追问，20字内）。
 
 严格返回JSON：
 {{"questions":[{{"id":1,"question":"题目","focus":"考察重点","answer":"参考答案","level":"中级","follow_up":"追问内容"}}]}}"""
@@ -358,6 +367,109 @@ def challenge():
         return jsonify({'success': True, 'data': _parse_json(raw)})
     except Exception as e:
         print(f"❌ challenge: {e}")
+        return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
+
+
+# ══════════════════════════════════════════════════════════
+#  接口 7：简历对比（优化前后对比）
+# ══════════════════════════════════════════════════════════
+@app.route('/api/compare', methods=['POST'])
+def compare():
+    ip = _get_ip()
+    ok, msg = _check_rate_limit(ip)
+    if not ok:
+        return jsonify({'success': False, 'error': msg}), 429
+
+    data       = request.get_json() or {}
+    position   = data.get('position', '').strip()[:MAX_POSITION_LEN]
+    resume_before = data.get('resume_before', '').strip()[:MAX_RESUME_LEN]
+    resume_after  = data.get('resume_after', '').strip()[:MAX_RESUME_LEN]
+    jd_text    = data.get('jd_text', '').strip()[:2000]
+
+    if not position or not resume_before or not resume_after:
+        return jsonify({'success': False, 'error': '请填写岗位和两份简历'}), 400
+    if not DEEPSEEK_API_KEY:
+        return jsonify({'success': False, 'error': 'API未配置'}), 500
+
+    jd_context = f'\n【岗位JD】\n{jd_text}' if jd_text else ''
+    
+    prompt = f"""你是科大讯飞AI职场大脑的简历评估专家。对比分析「{position}」岗位的两份简历（优化前后）。{jd_context}
+
+【简历版本A（优化前）】
+{resume_before}
+
+【简历版本B（优化后）】
+{resume_after}
+
+任务：
+1. 综合打分：A和B各给0-100分综合评分。
+2. 六维雷达对比：skill_match技能匹配、experience工作经验、education教育背景、project_quality项目质量、expression简历表达、market_fit市场适配，每维度给A和B各评0-100分。
+3. 差距分析：对比A和B在各维度的提升点（150字内）。
+4. 关键改进：列出3个B相比A最显著的优化点，每个30字内。
+5. 风险提示：B相比A是否有过度包装/无事实依据的风险（20字内）。
+
+严格返回JSON：
+{{"score_before":62,"score_after":79,"radar_before":{{"skill_match":55,"experience":60,"education":70,"project_quality":58,"expression":60,"market_fit":65}},"radar_after":{{"skill_match":78,"experience":75,"education":75,"project_quality":80,"expression":85,"market_fit":80}},"gap_analysis":"差距分析","key_improvements":["改进1","改进2","改进3"],"risk_warning":"风险提示"}}"""
+
+    try:
+        raw = _call_deepseek("你是科大讯飞AI职场大脑的简历评估专家，只返回JSON，不加解释。", prompt, 0.75, 2500)
+        return jsonify({'success': True, 'data': _parse_json(raw)})
+    except Exception as e:
+        print(f"❌ compare: {e}")
+        return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
+
+
+# ══════════════════════════════════════════════════════════
+#  接口 8：岗位画像深度分析（竞争画像+风险+量化）
+# ══════════════════════════════════════════════════════════
+@app.route('/api/portrait', methods=['POST'])
+def portrait():
+    ip = _get_ip()
+    ok, msg = _check_rate_limit(ip)
+    if not ok:
+        return jsonify({'success': False, 'error': msg}), 429
+
+    data     = request.get_json() or {}
+    position = data.get('position', '').strip()[:MAX_POSITION_LEN]
+    company  = data.get('company', '').strip()[:100]
+    jd_text  = data.get('jd_text', '').strip()[:2000]
+    resume   = data.get('resume', '').strip()[:MAX_RESUME_LEN]
+
+    if not position:
+        return jsonify({'success': False, 'error': '请输入岗位'}), 400
+    if not DEEPSEEK_API_KEY:
+        return jsonify({'success': False, 'error': 'API未配置'}), 500
+
+    co_hint = f'（公司：{company}）' if company else ''
+    jd_context = f'\n【岗位JD原文】\n{jd_text}' if jd_text else '\n（无JD原文，基于岗位名推断）'
+    resume_context = f'\n【用户简历】\n{resume}' if resume else ''
+
+    prompt = f"""你是科大讯飞AI职场大脑的市场分析师。分析「{position}」{co_hint}的岗位竞争画像。{jd_context}{resume_context}
+
+任务（基于真实市场情况、JD要求、当前就业市场数据推断）：
+1. 岗位真实竞争画像：
+   - 难度评级（1-5星）
+   - 竞争激烈度（激烈/中等/温和）
+   - 真实水位线描述（80字：JD理想要求 vs 实际录用水平的差距）
+   - 关键竞争维度（3个，如"3年+实战经验""熟练英语沟通""大厂背景优先"）
+2. 安全风险评估：
+   - 无风险提升占比（0-100%，多少优化建议有事实依据）
+   - 无来源风险占比（0-100%，多少优化建议可能过度包装）
+   - 风险提示（50字内）
+3. 量化评估预测：
+   - 优化前预估评分（0-100）
+   - 优化后预估评分（0-100）
+   - 提升幅度（分数差）
+   - 命中率预估（百分比，如"优化后进入面试概率提升至45%"）
+
+严格返回JSON：
+{{"competition":{{"difficulty":4,"intensity":"激烈","waterline_desc":"JD要求5年经验，实际录用3年即可，但需大厂背景","key_dimensions":["维度1","维度2","维度3"]}},"risk":{{"safe_ratio":60.5,"risky_ratio":39.5,"warning":"风险提示"}},"quantify":{{"score_before":62,"score_after":79,"improvement":17,"hit_rate":"命中率描述"}}}}"""
+
+    try:
+        raw = _call_deepseek("你是科大讯飞AI职场大脑的市场分析师，只返回JSON，不加解释。", prompt, 0.7, 2500)
+        return jsonify({'success': True, 'data': _parse_json(raw)})
+    except Exception as e:
+        print(f"❌ portrait: {e}")
         return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
 
 
