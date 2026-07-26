@@ -216,17 +216,30 @@ def salary():
     data     = request.get_json() or {}
     position = data.get('position', '').strip()[:MAX_POSITION_LEN]
     region   = data.get('region', '').strip()[:50]
+    years    = data.get('years', [])       # 工作年限
+    expectations = data.get('expectations', [])  # 薪资预期
+    scales   = data.get('scales', [])      # 公司规模
 
     if not position:
         return jsonify({'success': False, 'error': '请输入岗位'}), 400
     if not DEEPSEEK_API_KEY:
         return jsonify({'success': False, 'error': 'API未配置'}), 500
 
+    # 组装筛选条件
+    filters = []
+    if years: filters.append(f"工作年限：{('、'.join(years))[:100]}")
+    if expectations: filters.append(f"薪资预期：{('、'.join(expectations))[:100]}")
+    if scales: filters.append(f"公司规模：{('、'.join(scales))[:100]}")
+    filter_text = '\n'.join(filters) if filters else '不限'
+
     prompt = f"""你是科大讯飞AI职场大脑的薪酬分析师，针对「{position}」（市场：{region or '全球'}）提供薪资情报。
 
-提供：
-1. 薪资分级：初级/中级/高级三档，万元/年，具体数字范围。
-2. 全球代表性公司薪资对比：5家（覆盖科技巨头、独角兽、外企、国内头部等），标注是否热招。
+【筛选条件】
+{filter_text}
+
+提供（必须结合上述筛选条件给出精准数据，不能忽略用户的年限/预期/规模选择）：
+1. 薪资分级：初级/中级/高级三档，万元/年，具体数字范围。若用户指定年限，优先按该年限分档。
+2. 代表性公司薪资对比：5家（覆盖科技巨头、独角兽、外企、国内头部等，若用户指定规模，必须在该范围推荐），标注是否热招。
 3. 市场洞察：150字，含市场热度、趋势判断、核心影响因素、薪资提升建议。
 4. 谈薪话术：3条实用的薪资谈判话术/技巧，每条40字内，可直接用于和HR沟通。
 
@@ -273,6 +286,78 @@ def assistant():
         return jsonify({'success': True, 'answer': answer.strip()})
     except Exception as e:
         print(f"❌ assistant: {e}")
+        return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
+
+
+# ══════════════════════════════════════════════════════════
+#  接口 5：职业规划路线图
+# ══════════════════════════════════════════════════════════
+@app.route('/api/roadmap', methods=['POST'])
+def roadmap():
+    ip = _get_ip()
+    ok, msg = _check_rate_limit(ip)
+    if not ok:
+        return jsonify({'success': False, 'error': msg}), 429
+
+    data    = request.get_json() or {}
+    current = data.get('current', '').strip()[:100]
+    target  = data.get('target', '').strip()[:100]
+
+    if not current or not target:
+        return jsonify({'success': False, 'error': '请填写当前岗位和目标岗位'}), 400
+    if not DEEPSEEK_API_KEY:
+        return jsonify({'success': False, 'error': 'API未配置'}), 500
+
+    prompt = f"""你是科大讯飞AI职场大脑的职业规划师。用户当前岗位「{current}」，目标岗位「{target}」。
+
+请规划一条清晰的职业进阶路线，分3-4个阶段。每个阶段包含：
+- 阶段名称（如"夯实基础期"）
+- 时间跨度（如"0-1年"）
+- 核心目标（一句话）
+- 需要掌握的关键技能（2-3个）
+- 里程碑标志（达成什么算过关）
+
+严格返回JSON：
+{{"stages":[{{"name":"阶段名","duration":"时间跨度","goal":"核心目标","skills":["技能1","技能2"],"milestone":"里程碑"}}]}}"""
+
+    try:
+        raw = _call_deepseek("你是科大讯飞AI职场大脑的职业规划师，只返回JSON，不加解释。", prompt, 0.75, 2000)
+        return jsonify({'success': True, 'data': _parse_json(raw)})
+    except Exception as e:
+        print(f"❌ roadmap: {e}")
+        return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
+
+
+# ══════════════════════════════════════════════════════════
+#  接口 6：每日职场挑战题
+# ══════════════════════════════════════════════════════════
+@app.route('/api/challenge', methods=['POST'])
+def challenge():
+    ip = _get_ip()
+    ok, msg = _check_rate_limit(ip)
+    if not ok:
+        return jsonify({'success': False, 'error': msg}), 429
+
+    if not DEEPSEEK_API_KEY:
+        return jsonify({'success': False, 'error': 'API未配置'}), 500
+
+    import random
+    topics = ['面试技巧', '简历优化', '薪资谈判', '职场沟通', '时间管理', '团队协作', '职业规划', '情绪管理']
+    topic = random.choice(topics)
+
+    prompt = f"""你是科大讯飞AI职场大脑的出题官。请出1道关于「{topic}」的职场选择题，帮助职场人提升能力。
+
+要求：题目有实际场景，4个选项，1个正确答案，附解析。
+
+严格返回JSON：
+{{"question":"题目","options":["A选项","B选项","C选项","D选项"],"answer":0,"explanation":"解析说明为什么这个答案正确"}}
+（answer为正确选项的索引0-3）"""
+
+    try:
+        raw = _call_deepseek("你是科大讯飞AI职场大脑的出题官，只返回JSON，不加解释。", prompt, 0.9, 1000)
+        return jsonify({'success': True, 'data': _parse_json(raw)})
+    except Exception as e:
+        print(f"❌ challenge: {e}")
         return jsonify({'success': False, 'error': '系统繁忙，请稍后重试'}), 500
 
 
